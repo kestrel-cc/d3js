@@ -7,4 +7,5 @@ d3.js v4 相关示例
 ## 2、饼图和直方图互动
 [d3svg-pie4.html](http://kestrel.cc/myblog/html/svgchart/d3svg-pie4.htm)
 
-
+## 3、SVG地图
+[d3svg-map-svg.html](http://kestrel.cc/myblog/html/svgchart/d3svg-map-svg.htm)
