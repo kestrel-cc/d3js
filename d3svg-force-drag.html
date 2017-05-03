@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="GBK">
+    <title>研究SVG--D3.js</title>
+    <!-- 引入jQuery+bootstrap+Vue.js -->
+    <link rel="stylesheet" href="../../css/bootstrap.css">
+    <!--引入JS文件，次序不能变-->
+    <script src="../../js/jquery.min.js"></script>
+    <script src="../../js/bootstrap.js"></script>
+
+    <meta name="viewport"
+          content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+    <!-- width：页面宽度等于设备屏幕的宽度 -->
+    <!-- height：很少使用 -->
+    <!-- initial-scale：初始的缩放比例 （范围从 >0 到 10）-->
+    <!-- minimum-scale：最小的缩放比例 -->
+    <!-- maximum-scale：最大的缩放比例 -->
+    <!-- user-scalable：用户是否可以手动缩放 -->
+    <!-- target-densitydpi ：已经废弃 -->
+
+    <!-- 引入D3.js -->
+    <script src="../../js/d3.js"></script>
+
+    <!-- 防止缓存 -->
+    <meta http-equiv="pragma" content="no-cache">
+    <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+    <meta http-equiv="expires" content="Wed, 26 Feb 1997 08:21:57 GMT">
+</head>
+
+<body>
+</body>
+</html>
+<script>
+    //节点数组
+    var nodes_data = [{name: "桂林"}, {name: "广州"},
+        {name: "厦门"}, {name: "杭州"},
+        {name: "上海"}, {name: "青岛"},
+        {name: "天津"}];
+    //连线数组，两端是节点的序号
+    var links_data = [{source: "桂林", target: "广州"}, {source: "桂林", target: "厦门"},
+        {source: "桂林", target: "杭州"}, {source: "广州", target: "上海"},
+        {source: "广州", target: "青岛"}, {source: "广州", target: "天津"}, {source: "广州", target: "厦门"}];
+
+    //颜色比例尺
+    var color = d3.scaleOrdinal(d3.schemeCategory10);
+
+    //画布
+    var width = 900;
+    var height = 600;
+    var svg = d3.select("body")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+    //建立force模拟器，并指定节点
+    var simulation = d3.forceSimulation(nodes_data);
+    //指定连线
+    var link_force = d3.forceLink(links_data)
+            .id(function (d) {
+                return d.name;
+            })
+        //link.strength 缺省是 1/Math.min(count(link.source), count(link.target))
+        //数越大，越挤
+            .strength(0.1);
+    //指定力
+    var charge_force = d3.forceManyBody()
+        //manyBody.strength 缺省是 -30
+        //绝对值越大，弹性越大
+            .strength(-300);
+    //指定中心点
+    var center_force = d3.forceCenter(width / 2, height / 2);
+
+    //开始模拟
+    simulation
+            .force("charge", charge_force)
+            .force("center", center_force)
+            .force("link", link_force);
+
+    //对于每一个时间间隔，计算坐标
+    simulation.on("tick", tickActions);
+
+    //实际画连线
+    var links = svg.append("g")
+            .attr("class", "glinks")
+            .selectAll("line")
+            .data(links_data)
+            .enter().append("line")
+            .attr("stroke-width", 2)
+            .style("stroke", "red");
+
+    //实际画节点
+    var nodes = svg.append("g")
+            .attr("class", "gnodes")
+            .selectAll("circle")
+            .data(nodes_data)
+            .enter()
+            .append("circle")
+            .attr("r", 15)
+            .attr("fill", function (d, i) {
+                return color(i);
+            });
+
+    nodes.on("dblclick",function(d){
+        d.fx = null;
+        d.fy = null;
+    });
+
+    //添加描述节点的文字
+    var texts = svg.append("g")
+            .attr("class", "gtexts")
+            .selectAll("text")
+            .data(nodes_data)
+            .enter()
+            .append("text")
+            .attr("dx", 20)
+            .attr("dy", 8)
+            .attr("fill", "black")
+            .text(function (d) {
+                return d.name;
+            });
+
+    //添加拖动事件
+    var drag_handler = d3.drag()
+            .on("start", drag_start)
+            .on("drag", drag_drag)
+            .on("end", drag_end);
+    //拖动事件与节点实际挂钩
+    drag_handler(nodes);
+
+    //拖动事件的处理函数
+    //d 就是节点
+    function drag_start(d) {
+        //alpha取值范围是[0,1]，数越大，回弹力越大
+        if (!d3.event.active) simulation.alphaTarget(0.7).restart();
+        //fx,fy 渐变焦点
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+    function drag_drag(d) {
+        d.fx = d3.event.x;
+        d.fy = d3.event.y;
+    }
+    function drag_end(d) {
+        if (!d3.event.active) simulation.alphaTarget(0);
+//        d.fx = null;
+//        d.fy = null;
+    }
+
+    //计算坐标函数
+    function tickActions() {
+        //计算节点
+        nodes
+                .attr("cx", function (d) {
+                    return d.x;
+                })
+                .attr("cy", function (d) {
+                    return d.y;
+                });
+
+        //计算连线
+        links
+                .attr("x1", function (d) {
+                    return d.source.x;
+                })
+                .attr("y1", function (d) {
+                    return d.source.y;
+                })
+                .attr("x2", function (d) {
+                    return d.target.x;
+                })
+                .attr("y2", function (d) {
+                    return d.target.y;
+                });
+
+        //计算文本
+        texts
+                .attr("x", function (d) {
+                    return d.x;
+                })
+                .attr("y", function (d) {
+                    return d.y;
+                });
+    }
+</script>
