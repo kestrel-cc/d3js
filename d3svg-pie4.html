@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="GBK">
+    <title>研究SVG--D3.js</title>
+    <!-- 引入jQuery+bootstrap+Vue.js -->
+    <link rel="stylesheet" href="../../css/bootstrap.css">
+    <!--引入JS文件，次序不能变-->
+    <script src="../../js/jquery.min.js"></script>
+    <script src="../../js/bootstrap.js"></script>
+
+    <meta name="viewport"
+          content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+    <!-- width：页面宽度等于设备屏幕的宽度 -->
+    <!-- height：很少使用 -->
+    <!-- initial-scale：初始的缩放比例 （范围从 >0 到 10）-->
+    <!-- minimum-scale：最小的缩放比例 -->
+    <!-- maximum-scale：最大的缩放比例 -->
+    <!-- user-scalable：用户是否可以手动缩放 -->
+    <!-- target-densitydpi ：已经废弃 -->
+
+    <!-- 引入D3.js -->
+    <script src="../../js/d3.v4.js"></script>
+
+    <!-- 防止缓存 -->
+    <meta http-equiv="pragma" content="no-cache">
+    <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+    <meta http-equiv="expires" content="Wed, 26 Feb 1997 08:21:57 GMT">
+</head>
+<style>
+    body {
+        width: 1060px;
+        margin: 50px auto;
+    }
+    /* 饼图弧段 */
+    path {
+        stroke: #fff;
+    }
+    /* 饼图弧段，当鼠标移过时，变化透明度 */
+    path:hover {
+        opacity: 0.9;
+    }
+    /* 直方图柱体/图例小方块，当鼠标移过时，变成蓝色 */
+    rect:hover {
+        fill: blue;
+    }
+    /* 图例 */
+    .legend {
+        margin-bottom: 76px;
+        display: inline-block;
+        border-collapse: collapse;
+        border-spacing: 0px;
+    }
+    .legend td {
+        padding: 4px 5px;
+        vertical-align: bottom;
+    }
+</style>
+<body>
+<div id='dashboard'>
+</div>
+</body>
+</html>
+<script>
+    function dashboard(id, fData) {
+        //id = #dashboard
+        //fData = 原数据
+        //直方柱的颜色
+        var barColor = 'red';
+
+        function segColor(c) {
+            //针对高中低三档，给出饼图的三种颜色
+            return {low: "#807dba", mid: "#e08214", high: "#41ab5d"}[c];
+        }
+
+        //计算每个城市的数值合计
+        fData.forEach(function (d) {
+            d.total = d.freq.low + d.freq.mid + d.freq.high;
+        });
+        //返回各个城市和数值合计
+        var sF = fData.map(function (d) {
+            return [d.State, d.total];
+        });
+        //返回三档和数值合计
+        var tF = ['low', 'mid', 'high'].map(function (d) {
+            return {
+                type: d,
+                freq: d3.sum(fData.map(function (t) {
+                    return t.freq[d];
+                }))
+            };
+        });
+        //绘图
+        var hG = histoGram(sF), // 直方图.
+                pC = pieChart(tF), // 饼图.
+                leg = legend(tF);  // 饼图图例.
+
+        //--1---定义画直方图的函数-----
+        function histoGram(fD) {
+            //fD = 城市和数值合计
+            var hG = {},
+            //四个方向的pading距离：l:left,r:right,t:top,b:bottom
+                    hGDim = {t: 60, r: 0, b: 30, l: 0};
+            hGDim.w = 500 - hGDim.l - hGDim.r,
+                    hGDim.h = 300 - hGDim.t - hGDim.b;
+            //创建svg
+            var hGsvg = d3.select(id)
+                    .append("svg")
+                    .attr("width", hGDim.w + hGDim.l + hGDim.r)
+                    .attr("height", hGDim.h + hGDim.t + hGDim.b)
+                    .append("g")
+                    .attr("transform", "translate(" + hGDim.l + "," + hGDim.t + ")");
+            //x比例尺
+            var x = d3.scaleBand()
+                    .rangeRound([0, hGDim.w])//hGDim.w = 500
+                    .paddingInner(0.1)
+                    .domain(fD.map(function (d) {
+                        return d[0];
+                    }));
+            //创建X轴
+            hGsvg.append("g")
+                    .attr("class", "x axis")
+                    .attr("transform", "translate(0," + hGDim.h + ")")
+                    .call(d3.axisBottom(x));
+            //y比例尺
+            var y = d3.scaleLinear()
+                    .range([hGDim.h, 0])
+                    .domain([0, d3.max(fD, function (d) {
+                        return d[1];
+                    })]);
+            //根据数据，创建BAR类
+            //不直接创建rect的原因是，图例也会用到rect，将无法区分开
+            var bars = hGsvg.selectAll(".bar")
+                    .data(fD)
+                    .enter()
+                    .append("g")
+                    .attr("class", "bar");
+            //创建直方柱
+            bars.append("rect")
+                    .attr("x", function (d) {
+                        return x(d[0]);
+                    })
+                    .attr("y", function (d) {
+                        return y(d[1]);
+                    })
+                    .attr("width", x.bandwidth())
+                    .attr("height", function (d) {
+                        return hGDim.h - y(d[1]);
+                    })
+                    .attr('fill', barColor)
+                    .on("mouseover", mouseover)
+                    .on("mouseout", mouseout);
+            //创建柱体上文字
+            bars.append("text")
+                    .text(function (d) {
+                        return d3.format(",")(d[1])
+                    })
+                    .attr("x", function (d) {
+                        return x(d[0]) + x.bandwidth() / 2;
+                    })
+                    .attr("y", function (d) {
+                        return y(d[1]) - 5;
+                    })
+                    .attr("text-anchor", "middle");
+            //直方图鼠标事件，将激发饼图的重绘动作
+            function mouseover(d) {
+                //返回所选城市的数据，返回对象只有一个
+                var st = fData.filter(function (s) {
+                    return s.State == d[0];
+                })[0];
+                //更新饼图数据，对应该所选城市
+                var nD = d3.keys(st.freq)
+                        .map(function (s) {
+                            return {
+                                type: s,
+                                freq: st.freq[s]
+                            };
+                        });
+                //更新饼图
+                pC.update(nD);// 饼图
+                leg.update(nD);// 饼图图例
+            }
+            function mouseout(d) {
+                //恢复原貌
+                pC.update(tF);// 饼图
+                leg.update(tF);// 饼图图例
+            }
+
+            //重绘直方图：将由饼图pieChart()的鼠标事件激发
+            //注意这种写法，目的是形成闭包
+            //  这样在hG.update()中，可以直接调用dashboard()和histoGram()中的闭包变量
+            hG.update = function (nD, color) {
+                //nD是数组，color是颜色
+                //重设y比例尺
+                y.domain([0, d3.max(nD, function (d) {
+                    return d[1];
+                })]);
+                //重设BAR的数据
+                var bars = hGsvg.selectAll(".bar")
+                        .data(nD);
+                //动画重画直方图
+                bars.select("rect")
+                        .transition()
+                        .duration(500)
+                        .attr("y", function (d) {
+                            return y(d[1]);
+                        })
+                        .attr("height", function (d) {
+                            return hGDim.h - y(d[1]);
+                        })
+                        .attr("fill", color);
+                //动画重画文本
+                bars.select("text")
+                        .transition()
+                        .duration(500)
+                        .text(function (d) {
+                            return d3.format(",")(d[1])
+                        })
+                        .attr("y", function (d) {
+                            return y(d[1]) - 5;
+                        });
+            };
+            //注意这种写法，目的是形成闭包
+            return hG;
+        }
+
+        //--2---定义画饼图的函数-----
+        function pieChart(pD) {
+            var pC = {}, pieDim = {w: 250, h: 250};
+            pieDim.r = Math.min(pieDim.w, pieDim.h) / 2;
+            //再创建一个SVG
+            var piesvg = d3.select(id)
+                    .append("svg")
+                    .attr("width", pieDim.w)
+                    .attr("height", pieDim.h)
+                    .append("g")
+                    .attr("transform", "translate(" + pieDim.w / 2 + "," + pieDim.h / 2 + ")");
+            //弧生成器
+            var arc = d3.arc()
+                    .outerRadius(pieDim.r - 10)
+                    .innerRadius(0);
+            //饼图布局
+            var pie = d3.pie().sort(null).value(function (d) {
+                return d.freq;
+            });
+            //画各个弧段
+            piesvg.selectAll("path")
+                    .data(pie(pD))
+                    .enter()
+                    .append("path")
+                    .attr("d", arc)
+                    .each(function (d) {
+                        this._current = d;
+                    })
+                    .style("fill", function (d) {
+                        return segColor(d.data.type);
+                    })
+                    .on("mouseover", mouseover)
+                    .on("mouseout", mouseout);
+            //动画重绘饼图图：将由直方图histoGram()的鼠标事件激发
+            //注意这种写法，目的是形成闭包
+            pC.update = function (nD) {
+                piesvg.selectAll("path")
+                        .data(pie(nD))
+                        .transition()
+                        .duration(500)
+                        .attrTween("d", arcTween);
+            };
+            //饼图鼠标事件，将激发直方图的重绘动作
+            function mouseover(d) {
+                //只显示某档d.data.type的数值
+                hG.update(fData.map(function (v) {
+                    return [v.State, v.freq[d.data.type]];
+                }), segColor(d.data.type));
+            }
+
+            function mouseout(d) {
+                //恢复原貌
+                hG.update(fData.map(function (v) {
+                    return [v.State, v.total];
+                }), barColor);
+            }
+
+            //动画函数：用到插值补间interpolate
+            function arcTween(a) {
+                var i = d3.interpolate(this._current, a);
+                this._current = i(0);
+                return function (t) {
+                    return arc(i(t));
+                };
+            }
+            //注意这种写法，目的是形成闭包
+            return pC;
+        }
+
+        //--3---定义饼图图例的函数-----
+        function legend(lD) {
+            var leg = {};
+            //创建<table>
+            var legend = d3.select(id)
+                    .append("table")
+                    .attr('class', 'legend');
+            //创建<tr>
+            var tr = legend.append("tbody")
+                    .selectAll("tr")
+                    .data(lD)
+                    .enter()
+                    .append("tr");
+            //创建<td>
+            tr.append("td")
+                    .append("svg")
+                    .attr("width", '16')
+                    .attr("height", '16')
+                    .append("rect")//图例小方块
+                    .attr("width", '16')
+                    .attr("height", '16')
+                    .attr("fill", function (d) {
+                        return segColor(d.type);
+                    });
+            //创建文本（各档）
+            tr.append("td").text(function (d) {
+                return d.type;
+            });
+            //创建文本（数值）
+            tr.append("td").attr("class", 'legendFreq')
+                    .text(function (d) {
+                        return d3.format(",")(d.freq);
+                    });
+            //创建文本（百分比）
+            tr.append("td").attr("class", 'legendPerc')
+                    .text(function (d) {
+                        return getLegend(d, lD);
+                    });
+            //更新图例的函数
+            //注意这种写法，目的是形成闭包
+            leg.update = function (nD) {
+                var l = legend.select("tbody")
+                        .selectAll("tr")
+                        .data(nD);
+                //文本（数值）
+                l.select(".legendFreq")
+                        .text(function (d) {
+                            return d3.format(",")(d.freq);
+                        });
+                //文本（百分比）
+                l.select(".legendPerc")
+                        .text(function (d) {
+                            return getLegend(d, nD);
+                        });
+            };
+            //百分比格式
+            function getLegend(d, aD) {
+                var p = Math.max(0, d3.precisionFixed(0.05) - 2);
+                return d3.format("." + p + "%")(d.freq / d3.sum(aD.map(function (v) {
+                            return v.freq;
+                        })));
+            }
+            //注意这种写法，目的是形成闭包
+            return leg;
+        }
+    }
+
+    var freqData = [
+        {State: '北京', freq: {low: 4786, mid: 1319, high: 249}}
+        , {State: '上海', freq: {low: 1101, mid: 412, high: 674}}
+        , {State: '西安', freq: {low: 932, mid: 2149, high: 418}}
+        , {State: '太原', freq: {low: 832, mid: 1152, high: 1862}}
+        , {State: '昆明', freq: {low: 4481, mid: 3304, high: 948}}
+        , {State: '广州', freq: {low: 1619, mid: 167, high: 1063}}
+        , {State: '南京', freq: {low: 1819, mid: 247, high: 1203}}
+        , {State: '杭州', freq: {low: 4498, mid: 3852, high: 942}}
+        , {State: '长沙', freq: {low: 797, mid: 1849, high: 1534}}
+        , {State: '武汉', freq: {low: 162, mid: 379, high: 471}}
+    ];
+
+    dashboard('#dashboard', freqData);
+</script>
