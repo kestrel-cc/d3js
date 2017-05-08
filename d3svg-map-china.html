@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="GBK">
+    <title>研究SVG--D3.js</title>
+    <!-- 引入jQuery+bootstrap+Vue.js -->
+    <link rel="stylesheet" href="../../css/bootstrap.css">
+    <!--引入JS文件，次序不能变-->
+    <script src="../../js/jquery.min.js"></script>
+    <script src="../../js/bootstrap.js"></script>
+
+    <meta name="viewport"
+          content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+    <!-- width：页面宽度等于设备屏幕的宽度 -->
+    <!-- height：很少使用 -->
+    <!-- initial-scale：初始的缩放比例 （范围从 >0 到 10）-->
+    <!-- minimum-scale：最小的缩放比例 -->
+    <!-- maximum-scale：最大的缩放比例 -->
+    <!-- user-scalable：用户是否可以手动缩放 -->
+    <!-- target-densitydpi ：已经废弃 -->
+
+    <!-- 引入D3.js -->
+    <script src="../../js/d3.js"></script>
+
+    <!-- 防止缓存 -->
+    <meta http-equiv="pragma" content="no-cache">
+    <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+    <meta http-equiv="expires" content="Wed, 26 Feb 1997 08:21:57 GMT">
+</head>
+<body>
+<p id="msg1">省份</p><br>
+</body>
+</html>
+<script>
+    var url = "../../resc/china_provinces_numbered.svg";
+    //颜色比例尺
+    var color1 = d3.scaleOrdinal(d3.schemeCategory20);
+    var color2 = d3.scaleOrdinal(d3.schemeCategory20c);
+    function color(i){
+        if (i<20){
+            return color1(i);
+        }else{
+            return color2(i);
+        }
+    }
+    //缩放
+    identity = d3.zoomIdentity;
+    //装载地图
+    d3.xml(url, function (xml) {
+        document.body.appendChild(xml.documentElement);//添加DOM节点
+        var svg = d3.select("svg");
+        //滚轮缩放
+        var zoom = d3.zoom()
+                .scaleExtent([0.5, 5])
+                .translateExtent([[-100, -100], [svg.attr("width") + 200, svg.attr("height") + 200]])
+                .on("zoom", zoomed);
+        svg.call(zoom);
+        function zoomed() {
+            svg.select("g#all").attr("transform", d3.event.transform);
+        }
+        svg.selectAll("path.prov")
+                .attr("fill", function (d, i) {
+                    return color(i);
+                })
+                .on("mouseover", function (d, i) {
+                    d3.select(this)
+                            .attr("fill","yellow");
+                    //显示该省份名称
+                    $("#msg1").html(this.getAttribute("name"));
+                })
+                .on("mouseout", function (d, i) {
+                    d3.select(this)
+                            .attr("fill",color(i));
+                });
+    });
+</script>
